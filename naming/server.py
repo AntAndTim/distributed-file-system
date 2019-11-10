@@ -1,13 +1,36 @@
-from flask import Flask, send_from_directory
+import os
+
+from flask import Flask, send_from_directory, request
+
+from config.storage_config import FILE_STORAGE_PATH
 
 app = Flask(__name__)
 
 
-@app.route('/<path_to_file>')
+@app.route('/<path:path_to_file>', methods=['GET'])
 def download(path_to_file: str):
-    return send_from_directory('./', path_to_file, as_attachment=True)
+    return send_from_directory(FILE_STORAGE_PATH, path_to_file, as_attachment=True)
+
+
+@app.route('/<path:path_to_file>', methods=['POST'])
+def upload(path_to_file: str):
+    path_to_file = f'{FILE_STORAGE_PATH}/{path_to_file}'
+    directory = path_to_file[:path_to_file.rfind('/')]
+    if not os.path.exists(directory):
+        os.mkdir(directory)
+    file = open(path_to_file, 'wb')
+    file.write(request.data)
+    return 'OK'
+
+
+@app.route('/<path:path_to_file>', methods=['DELETE'])
+def delete(path_to_file: str):
+    path_to_file = f'{FILE_STORAGE_PATH}/{path_to_file}'
+    os.remove(path_to_file)
+    return 'OK'
 
 
 if __name__ == '__main__':
-
+    if not os.path.exists(FILE_STORAGE_PATH):
+        os.mkdir(FILE_STORAGE_PATH)
     app.run()
