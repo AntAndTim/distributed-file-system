@@ -1,0 +1,28 @@
+version: '3'
+services:
+  web:
+    build:
+      context: ./
+    ports:
+      - "80:80"
+    expose:
+      - "80"
+    networks:
+      - dfs
+    depends_on:
+      - redisdb
+    environment:
+      - REDIS_HOST=redisdb
+      - REDIS_PORT=6379
+  redisdb:
+    image: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - dfs
+    volumes:
+      - redis_data:/data
+networks:
+  dfs:
+volumes:
+  redis_data:

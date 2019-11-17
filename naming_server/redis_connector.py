@@ -1,14 +1,7 @@
-# import random
-#
 # import redis
 #
-# from file_container.server import FileServer
-#
-# r = redis.StrictRedis(host='localhost', port=6379, db=0)
-# r.set('foo', 'bar')
-# print(r.get('foo'))
-#
-#
+
+
 # def find_file(file_path):
 #     if r.exists(file_path):
 #         first_server = r.get(file_path).decode().split(';')[0]
