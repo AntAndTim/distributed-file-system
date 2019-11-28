@@ -1,4 +1,4 @@
-import random
+import json
 from os import environ
 
 import redis
@@ -12,7 +12,8 @@ r = redis.StrictRedis(host=environ['REDIS_HOST'], port=environ['REDIS_PORT'], db
 
 
 def find_file(path_to_file):
-    return f'http://{server_list[0]["address"]}:{server_list[0]["port"]}/{path_to_file}'
+    servers = json.loads(r.get(path_to_file))
+    return f'http://{servers[0]["address"]}:{servers[0]["port"]}/{path_to_file}'
 
 
 def sort_server_list(list_of_servers):
@@ -34,7 +35,16 @@ def download(path_to_file: str):
 def upload(path_to_file: str):
     url = find_file(path_to_file)
     requests.post(url, data=request.data)
+    r.set(path_to_file, server_list_to_string())
     return 'OK'
+
+
+def server_list_to_string():
+    out = "["
+    for server in server_list:
+        out += '{' + f'"address": "{server["address"]}", "port": {server["port"]}' + "},"
+    out += "]"
+    return out.replace(',]', ']')
 
 
 @app.route('/files/<path:path_to_file>', methods=['DELETE'])
@@ -64,20 +74,5 @@ def add_header(r):
     return r
 
 
-class Server:
-    space = 0
-
-    def __repr__(self) -> str:
-        return f'address: {self.address}, port: {self.port}, space: {self.space}'
-
-    def __init__(self, address, port) -> None:
-        self.address = address
-        self.port = port
-        self.space = random.uniform(1, 100)
-
-
 if __name__ == '__main__':
-    r.set('foo', 'bar')
-    print(r.get('foo'))
-    print(r.get('foo'))
     app.run(host="0.0.0.0", port=80)

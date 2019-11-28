@@ -1,6 +1,8 @@
+import configparser
 import os
 from os.path import expanduser
 
+import requests
 from flask import Flask, send_from_directory, request
 
 FILE_STORAGE_PATH = f'{expanduser("~")}/files'
@@ -34,4 +36,10 @@ def delete(path_to_file: str):
 if __name__ == '__main__':
     if not os.path.exists(FILE_STORAGE_PATH):
         os.mkdir(FILE_STORAGE_PATH)
+    config = configparser.ConfigParser()
+    config.read('file_server.ini')
+    requests.post(url=f'http://{config["DEFAULT"]["host"]}:{config["DEFAULT"]["port"]}/server', json={
+        "address": 'localhost',  # TODO: replace with get('https://api.ipify.org').text
+        "port": 8080
+    })
     app.run(host='0.0.0.0', port=8080)
