@@ -1,4 +1,5 @@
 import json
+import random
 from os import environ
 
 import redis
@@ -13,7 +14,17 @@ r = redis.StrictRedis(host=environ['REDIS_HOST'], port=environ['REDIS_PORT'], db
 
 def find_file(path_to_file):
     servers = json.loads(r.get(path_to_file))
-    return f'http://{servers[0]["address"]}:{servers[0]["port"]}/{path_to_file}'
+    links = []
+    for server in servers:
+        links.append(f'http://{server["address"]}:{server["port"]}/{path_to_file}')
+    return links
+
+
+def upload_file(path_to_file):
+    links = []
+    for server in server_list:
+        links.append(f'http://{server["address"]}:{server["port"]}/{path_to_file}')
+    return links
 
 
 def sort_server_list(list_of_servers):
@@ -22,8 +33,8 @@ def sort_server_list(list_of_servers):
 
 @app.route('/files/<path:path_to_file>', methods=['GET'])
 def download(path_to_file: str):
-    url = find_file(path_to_file)
-    get = requests.get(url)
+    urls = find_file(path_to_file)
+    get = requests.get(urls[int(random.uniform(0, len(urls)))])
     if get.status_code != 200:
         abort(get.status_code)
     response = make_response(get.content)
@@ -33,8 +44,9 @@ def download(path_to_file: str):
 
 @app.route('/files/<path:path_to_file>', methods=['POST'])
 def upload(path_to_file: str):
-    url = find_file(path_to_file)
-    requests.post(url, data=request.data)
+    urls = upload_file(path_to_file)
+    for url in urls:
+        requests.post(url, data=request.data)
     r.set(path_to_file, server_list_to_string())
     return 'OK'
 
@@ -49,8 +61,10 @@ def server_list_to_string():
 
 @app.route('/files/<path:path_to_file>', methods=['DELETE'])
 def delete(path_to_file: str):
-    url = find_file(path_to_file)
-    requests.delete(url)
+    urls = find_file(path_to_file)
+    for url in urls:
+        requests.delete(url)
+    r.delete(path_to_file)
     return 'OK'
 
 
