@@ -13,17 +13,35 @@ r = redis.StrictRedis(host=environ['REDIS_HOST'], port=environ['REDIS_PORT'], db
 
 
 def find_file(path_to_file):
+    global server_list
     servers = json.loads(r.get(path_to_file))
     links = []
     for server in servers:
-        links.append(f'http://{server["address"]}:{server["port"]}/{path_to_file}')
+        try:
+            requests.get(f'http://{server["address"]}:{server["port"]}/ping')
+            links.append(f'http://{server["address"]}:{server["port"]}/{path_to_file}')
+        except:
+            new_server_list  = [x for x in server_list if (x["address"] != server["address"]
+                                                           and x["port"] != server["port"])]
+            server_list = new_server_list
+            r.set(path_to_file, server_list_to_string())
     return links
 
 
 def upload_file(path_to_file):
+    global server_list
     links = []
-    for server in server_list:
-        links.append(f'http://{server["address"]}:{server["port"]}/{path_to_file}')
+    list_of_servers = server_list
+    for server in list_of_servers:
+        try:
+            requests.get(f'http://{server["address"]}:{server["port"]}/ping')
+            links.append(f'http://{server["address"]}:{server["port"]}/{path_to_file}')
+        except:
+            new_server_list  = [x for x in server_list if (x["address"] != server["address"]
+                                                           and x["port"] != server["port"])]
+            server_list = new_server_list
+            r.set(path_to_file, server_list_to_string())
+
     return links
 
 
@@ -34,6 +52,8 @@ def sort_server_list(list_of_servers):
 @app.route('/files/<path:path_to_file>', methods=['GET'])
 def download(path_to_file: str):
     urls = find_file(path_to_file)
+    if len(urls) == 0:
+        return 'SERVERS ARE UNAVAILABLE'
     get = requests.get(urls[int(random.uniform(0, len(urls)))])
     if get.status_code != 200:
         abort(get.status_code)

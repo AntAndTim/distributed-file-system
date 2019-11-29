@@ -1,5 +1,9 @@
 import configparser
 import os
+import re
+import requests
+import shutil
+
 from os.path import expanduser
 
 import requests
@@ -14,6 +18,9 @@ app = Flask(__name__)
 def download(path_to_file: str):
     return send_from_directory(FILE_STORAGE_PATH, path_to_file, as_attachment=True)
 
+@app.route('/ping', methods=['GET'])
+def ping():
+    return 'OK'
 
 @app.route('/<path:path_to_file>', methods=['POST'])
 def upload(path_to_file: str):
@@ -36,10 +43,14 @@ def delete(path_to_file: str):
 if __name__ == '__main__':
     if not os.path.exists(FILE_STORAGE_PATH):
         os.mkdir(FILE_STORAGE_PATH)
+    else:
+        shutil.rmtree(FILE_STORAGE_PATH)
+        os.mkdir(FILE_STORAGE_PATH)
     config = configparser.ConfigParser()
     config.read('file_server.ini')
+    data = requests.get('http://checkip.dyndns.com/').text
     requests.post(url=f'http://{config["DEFAULT"]["host"]}:{config["DEFAULT"]["port"]}/server', json={
-        "address": 'localhost',  # TODO: replace with get('https://api.ipify.org').text
+        "address": 'localhost',  # TODO: replace with re.compile(r'Address: (\d+\.\d+\.\d+\.\d+)').search(data).group(1)
         "port": 8080
     })
     app.run(host='0.0.0.0', port=8080)
