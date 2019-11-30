@@ -1,52 +1,51 @@
 import json
 import random
 from os import environ
+from typing import List
 
 import redis
 import requests
-from flask import Flask, request, make_response, abort
+from flask import Flask, request, make_response, abort, jsonify
+
+from naming_server.models import Server, Encoder
 
 app = Flask(__name__)
+app.json_encoder = Encoder
 
-server_list = []
-r = redis.StrictRedis(host=environ['REDIS_HOST'], port=environ['REDIS_PORT'], db=0)
+ACTIVE_SERVERS: List[Server] = []
+REDIS_CONNECTOR = redis.StrictRedis(host=environ['REDIS_HOST'], port=environ['REDIS_PORT'], db=0)
 
 
 def find_file(path_to_file):
-    global server_list
-    servers = json.loads(r.get(path_to_file))
+    possible_servers = json.loads(REDIS_CONNECTOR.get(path_to_file))
+    servers: List[Server] = []
+    for server in possible_servers:
+        servers.append(Server(server["address"], server["port"]))
+
     links = []
     for server in servers:
         try:
-            requests.get(f'http://{server["address"]}:{server["port"]}/ping')
-            links.append(f'http://{server["address"]}:{server["port"]}/{path_to_file}')
+            requests.get(f'http://{server.address}:{server.port}/ping')
+            links.append(f'http://{server.address}:{server.port}/{path_to_file}')
         except:
-            new_server_list = [x for x in server_list if (x["address"] != server["address"]
-                                                          and x["port"] != server["port"])]
-            server_list = new_server_list
-            r.set(path_to_file, server_list_to_string())
+            servers.remove(server)
+
+    REDIS_CONNECTOR.set(path_to_file, str(servers))
     return links
 
 
 def upload_file(path_to_file):
-    global server_list
+    global ACTIVE_SERVERS
     links = []
-    list_of_servers = server_list
-    for server in list_of_servers:
+    for server in ACTIVE_SERVERS:
         try:
-            requests.get(f'http://{server["address"]}:{server["port"]}/ping')
-            links.append(f'http://{server["address"]}:{server["port"]}/{path_to_file}')
+            requests.get(f'http://{server.address}:{server.port}/ping')
+            links.append(f'http://{server.address}:{server.port}/{path_to_file}')
         except:
-            new_server_list = [x for x in server_list if (x["address"] != server["address"]
-                                                          and x["port"] != server["port"])]
-            server_list = new_server_list
-            r.set(path_to_file, server_list_to_string())
+            ACTIVE_SERVERS.remove(server)
 
+    REDIS_CONNECTOR.set(path_to_file, str(ACTIVE_SERVERS))
     return links
-
-
-def sort_server_list(list_of_servers):
-    return sorted(list_of_servers, key=lambda x: x.space, reverse=True)
 
 
 @app.route('/files/<path:path_to_file>', methods=['GET'])
@@ -67,16 +66,8 @@ def upload(path_to_file: str):
     urls = upload_file(path_to_file)
     for url in urls:
         requests.post(url, data=request.data)
-    r.set(path_to_file, server_list_to_string())
-    return 'OK'
-
-
-def server_list_to_string():
-    out = "["
-    for server in server_list:
-        out += '{' + f'"address": "{server["address"]}", "port": {server["port"]}' + "},"
-    out += "]"
-    return out.replace(',]', ']')
+    REDIS_CONNECTOR.set(path_to_file, str(ACTIVE_SERVERS))
+    return jsonify('OK')
 
 
 @app.route('/files/<path:path_to_file>', methods=['DELETE'])
@@ -84,25 +75,25 @@ def delete(path_to_file: str):
     urls = find_file(path_to_file)
     for url in urls:
         requests.delete(url)
-    r.delete(path_to_file)
-    return 'OK'
+    REDIS_CONNECTOR.delete(path_to_file)
+    return jsonify('OK')
 
 
 @app.route('/server', methods=['POST'])
 def add_server():
-    server_data = request.get_json(True)
-    server_list.append(server_data)
-    return 'OK'
+    server_json = request.get_json(True)
+    server = Server(server_json["address"], server_json["port"])
+    ACTIVE_SERVERS.append(server)
+    return jsonify(server)
 
 
 @app.route('/initialize', methods=['GET'])
 def initialize():
-    result = '['
-    for server in server_list:
-        response = requests.get(f'http://{server["address"]}:{server["port"]}/reset')
-        result += f'{server["address"]}: {response.text}, '
-    result += ']'
-    return result.replace(',]', ']')
+    result = {}
+    for server in ACTIVE_SERVERS:
+        response = requests.get(f'http://{server.address}:{server.port}/reset')
+        result[str(server)] = response.text
+    return jsonify(result)
 
 
 @app.after_request

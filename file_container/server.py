@@ -60,7 +60,8 @@ if __name__ == '__main__':
     config.read('file_server.ini')
     data = requests.get('http://checkip.dyndns.com/').text
     requests.post(url=f'http://{config["DEFAULT"]["host"]}:{config["DEFAULT"]["port"]}/server', json={
-        "address": 'localhost',  # TODO: replace with re.compile(r'Address: (\d+\.\d+\.\d+\.\d+)').search(data).group(1)
+        "address": 'localhost',
+    # TODO: replace with re.compile(REDIS_CONNECTOR'Address: (\d+\.\d+\.\d+\.\d+)').search(data).group(1)
         "port": 8080
     })
     app.run(host='0.0.0.0', port=8080)
