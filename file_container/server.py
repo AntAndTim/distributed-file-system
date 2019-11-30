@@ -1,13 +1,15 @@
 import configparser
+import json
 import os
-import re
 import shutil
 from os.path import expanduser
 
 import requests
 from flask import Flask, send_from_directory, request
 
-FILE_STORAGE_PATH = f'{expanduser("~")}/files'
+from common.models import Server
+
+FILE_STORAGE_PATH = f'{expanduser("~")}/files/'
 
 app = Flask(__name__)
 
@@ -35,14 +37,18 @@ def upload(path_to_file: str):
 
 @app.route('/replicate', methods=['POST'])
 def replicate():
-    data = request.data
-    path_to_folder = f'{FILE_STORAGE_PATH}'
-    files = []
-    # r=root, d=directories, f = files
-    for r, d, f in os.walk(path_to_folder):
-        for file in f:
-            files.append(os.path.join(r, file))
+    server_json = json.loads(request.data)
+    server = Server(server_json['address'], server_json['port'])
 
+    files_to_send = []
+    for address, dirs, files in os.walk(FILE_STORAGE_PATH):
+        for file in files:
+            relative_folder = address.replace(FILE_STORAGE_PATH, '')
+            if relative_folder != '':
+                relative_folder += '/'
+            files_to_send.append(relative_folder + file)
+    for file in files_to_send:
+        requests.post(f'http://{server.address}:{server.port}/{file}', data=request.data)
     return 'OK'
 
 
@@ -76,7 +82,7 @@ if __name__ == '__main__':
     host = config["DEFAULT"]["host"]
     port = config["DEFAULT"]["port"]
     requests.post(url=f'http://{host}:{port}/server', json={
-        "address": re.compile(r'Address: (\d+\.\d+\.\d+\.\d+)').search(ip).group(1),
+        "address": 'localhost',  # re.compile(r'Address: (\d+\.\d+\.\d+\.\d+)').search(ip).group(1)
         "port": 8080
     })
     app.run(host='0.0.0.0', port=8080)

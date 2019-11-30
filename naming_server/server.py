@@ -9,7 +9,7 @@ import redis
 import requests
 from flask import Flask, request, make_response, abort, jsonify
 
-from naming_server.models import Server, Encoder
+from common.models import Server, Encoder
 from naming_server.scheduler import Scheduler
 
 LOG = logging.getLogger('NamingServer')
@@ -90,9 +90,11 @@ def prepare_server(server):
         response = requests.get(f'http://{server.address}:{server.port}/reset')
         if response.status_code != 200:
             raise Exception("Could not reset server")
+        replicas = ACTIVE_SERVERS.copy()
+        replicas.remove(server)
         if len(ACTIVE_SERVERS) > 1:
-            server_from = get_random_element(ACTIVE_SERVERS)
-            requests.post(f'http://{server_from.address}:{server_from.port}/replicate', json=str(server))
+            server_from = get_random_element(replicas)
+            requests.post(f'http://{server_from.address}:{server_from.port}/replicate', data=str(server))
 
 
 @app.route('/initialize', methods=['GET'])
@@ -147,7 +149,7 @@ def upload_file(path_to_file):
             ping(server)
             links.append(f'http://{server.address}:{server.port}/{path_to_file}')
         except:
-            ACTIVE_SERVERS.pop(server)
+            ACTIVE_SERVERS.remove(server)
 
     REDIS_CONNECTOR.set(path_to_file, str(ACTIVE_SERVERS))
     return links
