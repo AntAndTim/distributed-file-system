@@ -1,4 +1,5 @@
 import json
+import logging
 import random
 from os import environ
 from typing import List
@@ -8,11 +9,31 @@ import requests
 from flask import Flask, request, make_response, abort, jsonify
 
 from naming_server.models import Server, Encoder
+from naming_server.scheduler import Scheduler
 
-app = Flask(__name__)
-app.json_encoder = Encoder
+LOG = logging.getLogger('NamingServer')
+LOG.setLevel(logging.DEBUG)
+LOG.addHandler(logging.FileHandler('naming_server.log'))
+LOG.addHandler(logging.StreamHandler())
 
 ACTIVE_SERVERS: List[Server] = []
+
+
+def check_server_liveness():
+    for server in ACTIVE_SERVERS:
+        try:
+            requests.get(f'http://{server.address}:{server.port}/ping')
+        except:
+            ACTIVE_SERVERS.remove(server)
+            LOG.info(f'Server {server} disconnected.')
+
+
+SCHEDULER = Scheduler(check_server_liveness, ())
+
+app = Flask(__name__)
+app.logger = LOG
+app.json_encoder = Encoder
+
 REDIS_CONNECTOR = redis.StrictRedis(host=environ['REDIS_HOST'], port=environ['REDIS_PORT'], db=0)
 
 
@@ -42,7 +63,7 @@ def upload_file(path_to_file):
             requests.get(f'http://{server.address}:{server.port}/ping')
             links.append(f'http://{server.address}:{server.port}/{path_to_file}')
         except:
-            ACTIVE_SERVERS.remove(server)
+            ACTIVE_SERVERS.pop(server)
 
     REDIS_CONNECTOR.set(path_to_file, str(ACTIVE_SERVERS))
     return links
@@ -110,4 +131,5 @@ def add_header(r):
 
 
 if __name__ == '__main__':
+    SCHEDULER.start()
     app.run(host="0.0.0.0", port=80)
