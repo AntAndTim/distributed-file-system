@@ -21,8 +21,8 @@ def find_file(path_to_file):
             requests.get(f'http://{server["address"]}:{server["port"]}/ping')
             links.append(f'http://{server["address"]}:{server["port"]}/{path_to_file}')
         except:
-            new_server_list  = [x for x in server_list if (x["address"] != server["address"]
-                                                           and x["port"] != server["port"])]
+            new_server_list = [x for x in server_list if (x["address"] != server["address"]
+                                                          and x["port"] != server["port"])]
             server_list = new_server_list
             r.set(path_to_file, server_list_to_string())
     return links
@@ -37,8 +37,8 @@ def upload_file(path_to_file):
             requests.get(f'http://{server["address"]}:{server["port"]}/ping')
             links.append(f'http://{server["address"]}:{server["port"]}/{path_to_file}')
         except:
-            new_server_list  = [x for x in server_list if (x["address"] != server["address"]
-                                                           and x["port"] != server["port"])]
+            new_server_list = [x for x in server_list if (x["address"] != server["address"]
+                                                          and x["port"] != server["port"])]
             server_list = new_server_list
             r.set(path_to_file, server_list_to_string())
 
@@ -93,6 +93,16 @@ def add_server():
     server_data = request.get_json(True)
     server_list.append(server_data)
     return 'OK'
+
+
+@app.route('/initialize', methods=['GET'])
+def initialize():
+    result = '['
+    for server in server_list:
+        response = requests.get(f'http://{server["address"]}:{server["port"]}/reset')
+        result += f'{server["address"]}: {response.text}, '
+    result += ']'
+    return result.replace(',]', ']')
 
 
 @app.after_request

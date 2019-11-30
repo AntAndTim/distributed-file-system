@@ -1,9 +1,6 @@
 import configparser
 import os
-import re
-import requests
 import shutil
-
 from os.path import expanduser
 
 import requests
@@ -18,9 +15,11 @@ app = Flask(__name__)
 def download(path_to_file: str):
     return send_from_directory(FILE_STORAGE_PATH, path_to_file, as_attachment=True)
 
+
 @app.route('/ping', methods=['GET'])
 def ping():
     return 'OK'
+
 
 @app.route('/<path:path_to_file>', methods=['POST'])
 def upload(path_to_file: str):
@@ -40,12 +39,23 @@ def delete(path_to_file: str):
     return 'OK'
 
 
+@app.route('/reset', methods=['GET'])
+def reset():
+    recreate_storage()
+    total, used, free = shutil.disk_usage("/")
+    return f'{free * 1e-9}Gb'
+
+
+def recreate_storage():
+    shutil.rmtree(FILE_STORAGE_PATH)
+    os.mkdir(FILE_STORAGE_PATH)
+
+
 if __name__ == '__main__':
     if not os.path.exists(FILE_STORAGE_PATH):
         os.mkdir(FILE_STORAGE_PATH)
     else:
-        shutil.rmtree(FILE_STORAGE_PATH)
-        os.mkdir(FILE_STORAGE_PATH)
+        recreate_storage()
     config = configparser.ConfigParser()
     config.read('file_server.ini')
     data = requests.get('http://checkip.dyndns.com/').text
