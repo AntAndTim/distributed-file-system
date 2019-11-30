@@ -1,5 +1,6 @@
 import configparser
 import os
+import re
 import shutil
 from os.path import expanduser
 
@@ -32,6 +33,19 @@ def upload(path_to_file: str):
     return 'OK'
 
 
+@app.route('/replicate', methods=['POST'])
+def replicate():
+    data = request.data
+    path_to_folder = f'{FILE_STORAGE_PATH}'
+    files = []
+    # r=root, d=directories, f = files
+    for r, d, f in os.walk(path_to_folder):
+        for file in f:
+            files.append(os.path.join(r, file))
+
+    return 'OK'
+
+
 @app.route('/<path:path_to_file>', methods=['DELETE'])
 def delete(path_to_file: str):
     path_to_file = f'{FILE_STORAGE_PATH}/{path_to_file}'
@@ -58,10 +72,11 @@ if __name__ == '__main__':
         recreate_storage()
     config = configparser.ConfigParser()
     config.read('file_server.ini')
-    data = requests.get('http://checkip.dyndns.com/').text
-    requests.post(url=f'http://{config["DEFAULT"]["host"]}:{config["DEFAULT"]["port"]}/server', json={
-        "address": 'localhost',
-    # TODO: replace with re.compile(REDIS_CONNECTOR'Address: (\d+\.\d+\.\d+\.\d+)').search(data).group(1)
+    ip = requests.get('http://checkip.dyndns.com/').text
+    host = config["DEFAULT"]["host"]
+    port = config["DEFAULT"]["port"]
+    requests.post(url=f'http://{host}:{port}/server', json={
+        "address": re.compile(r'Address: (\d+\.\d+\.\d+\.\d+)').search(ip).group(1),
         "port": 8080
     })
     app.run(host='0.0.0.0', port=8080)
