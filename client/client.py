@@ -5,37 +5,48 @@ import requests
 
 config = configparser.ConfigParser()
 config.read('client.ini')
-host = config["DEFAULT"]["host"]
-port = config["DEFAULT"]["port"]
+HOST = config["DEFAULT"]["host"]
+PORT = config["DEFAULT"]["port"]
 
 current_directory = ''
 
 
-def initialize():
-    pass
+def file_query(query):
+    return f'http://{HOST}:{PORT}/files/{query}'
+
+
+def query(query):
+    return f'http://{HOST}:{PORT}/{query}'
+
+
+# Commands section
+# -----------------------------------
+
+def initialize() -> requests.Response:
+    return requests.get(query('initialize'))
 
 
 def create_file(path_to_file):
     if current_directory != '':
-        requests.post(f'http://{host}:{port}/files/{current_directory}/{path_to_file}')
+        requests.post(file_query(f'{current_directory}/{path_to_file}'))
     else:
-        requests.post(f'http://{host}:{port}/files/{os.path.basename(path_to_file)}')
+        requests.post(file_query(os.path.basename(path_to_file)))
 
 
 def write_file(path_to_file):
     data = open(path_to_file, 'rb').read()
 
     if current_directory != '':
-        requests.post(f'http://{host}:{port}/files/{current_directory}/{os.path.basename(path_to_file)}', data=data)
+        requests.post(file_query(f'{current_directory}/{os.path.basename(path_to_file)}'), data=data)
     else:
-        requests.post(f'http://{host}:{port}/files/{os.path.basename(path_to_file)}', data=data)
+        requests.post(file_query(os.path.basename(path_to_file)), data=data)
 
 
 def delete_file(path_to_file):
     if current_directory != '':
-        requests.delete(f'http://{host}:{port}/files/{current_directory}/{os.path.basename(path_to_file)}')
+        requests.delete(file_query(f'{current_directory}/{os.path.basename(path_to_file)}'))
     else:
-        requests.delete(f'http://{host}:{port}/files/{os.path.basename(path_to_file)}')
+        requests.delete(file_query(os.path.basename(path_to_file)))
 
 
 def info_file():
@@ -60,28 +71,39 @@ def read_directory():
 
 
 def make_directory(path_to_directory):
-    requests.post(f'http://{host}:{port}/files/{path_to_directory}')
+    requests.post(file_query(path_to_directory))
 
 
 def delete_directory():
     pass
 
 
-while True:
-    print('please write command')
-    command = input()
+# -----------------------------------
+# End of commands section
 
-    if command == 'create file':
-        print('write system path to file')
-        path_to_file = input()
-        create_file(path_to_file)
+commands = {
 
-    if command == 'write file':
-        print('write system path to file')
-        path_to_file = input()
-        write_file(path_to_file)
+}
 
-    if command == 'open directory':
-        print('write directory')
-        path_to_directory = input()
-        open_directory(path_to_directory)
+if __name__ == '__main__':
+    print('Client for DFS started!')
+    try:
+        print(initialize().text)
+    except requests.ConnectionError:
+        print(f'DFS is not running on host `{HOST}:{PORT}`. Please, check your configuration.')
+        print('Exiting...')
+        exit(0)
+
+    print('DFS is running and ready to use, good luck :)')
+    print()
+    print('Please, type in the command. Type `help` for the list of available commands')
+
+    while True:
+        command = input()
+
+        if command == 'help':
+            print(commands)
+        elif command in commands:
+            commands[command]()
+        else:
+            print(f'There is no command `{command}`! Type `help` for the list of available commands')

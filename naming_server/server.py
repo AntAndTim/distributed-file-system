@@ -3,11 +3,12 @@ import logging
 import random
 from os import environ
 from threading import Thread
-from typing import List
+from typing import List, Any
 
 import redis
 import requests
 from flask import Flask, request, make_response, abort, jsonify
+from requests import Response
 
 from common.models import Server, Encoder
 from naming_server.scheduler import Scheduler
@@ -24,7 +25,7 @@ def check_server_liveness():
     for server in ACTIVE_SERVERS:
         try:
             ping(server)
-        except:
+        except requests.ConnectionError:
             ACTIVE_SERVERS.remove(server)
             LOG.info(f'Server {server} disconnected.')
 
@@ -38,9 +39,34 @@ app.json_encoder = Encoder
 REDIS_CONNECTOR = redis.StrictRedis(host=environ['REDIS_HOST'], port=environ['REDIS_PORT'], db=0)
 
 
+# Util methods section
+# -----------------------------------
+def construct_query(server: Server, query: str) -> str:
+    return f'http://{server.address}:{server.port}/{query}'
+
+
+def reset(server: Server) -> Response:
+    return requests.get(construct_query(server, 'reset'))
+
+
+def ping(server: Server):
+    requests.get(construct_query(server, 'ping'))
+
+
+def get_random_element(a_list: List[Any]) -> Any:
+    return a_list[int(random.uniform(0, len(a_list)))]
+
+
+# -----------------------------------
+# End of util methods section
+
+
+# File managing section
+# -----------------------------------
+
 @app.route('/files/<path:path_to_file>', methods=['GET'])
 def download(path_to_file: str):
-    urls = find_file(path_to_file)
+    urls = _find_file_location(path_to_file)
     if len(urls) == 0:
         return 'SERVERS ARE UNAVAILABLE'
     get = requests.get(get_random_element(urls))
@@ -53,22 +79,32 @@ def download(path_to_file: str):
 
 @app.route('/files/<path:path_to_file>', methods=['POST'])
 def upload(path_to_file: str):
-    urls = upload_file(path_to_file)
-    for url in urls:
-        requests.post(url, data=request.data)
+    for server in ACTIVE_SERVERS:
+        try:
+            requests.post(construct_query(server, path_to_file), data=request.data)
+        except requests.ConnectionError:
+            ACTIVE_SERVERS.remove(server)
     REDIS_CONNECTOR.set(path_to_file, str(ACTIVE_SERVERS))
     return jsonify('OK')
 
 
 @app.route('/files/<path:path_to_file>', methods=['DELETE'])
 def delete(path_to_file: str):
-    urls = find_file(path_to_file)
+    urls = _find_file_location(path_to_file)
     for url in urls:
         requests.delete(url)
     REDIS_CONNECTOR.delete(path_to_file)
     return jsonify('OK')
 
 
+# -----------------------------------
+# End of file managing section
+
+
+# This method is called by a file server starting, so he can be found by this server
+
+# The real preparation of file server for storing data is in prepare_server method, as we need to send answer to file
+# server to prevent deadlocking
 @app.route('/server', methods=['POST'])
 def add_server():
     server_json = request.get_json(True)
@@ -79,29 +115,32 @@ def add_server():
     return jsonify(server)
 
 
+# Wipes the file server and then fill it with data from other server alive
+# TODO: maybe add some checksum checking for finding, if file server really replicated
 def prepare_server(server):
     with app.app_context():
         while True:
             try:
                 ping(server)
-            except:
+            except requests.ConnectionError:
                 continue
             break
-        response = requests.get(f'http://{server.address}:{server.port}/reset')
+        response = reset(server)
         if response.status_code != 200:
             raise Exception("Could not reset server")
         replicas = ACTIVE_SERVERS.copy()
         replicas.remove(server)
         if len(ACTIVE_SERVERS) > 1:
             server_from = get_random_element(replicas)
-            requests.post(f'http://{server_from.address}:{server_from.port}/replicate', data=str(server))
+            requests.post(construct_query(server_from, 'replicate'), data=str(server))
 
 
+# User for wiping all file servers
 @app.route('/initialize', methods=['GET'])
 def initialize():
     result = {}
     for server in ACTIVE_SERVERS:
-        response = requests.get(f'http://{server.address}:{server.port}/reset')
+        response = reset(server)
         result[str(server)] = response.text
     return jsonify(result)
 
@@ -119,44 +158,20 @@ def add_header(r):
     return r
 
 
-def find_file(path_to_file):
-    possible_servers = json.loads(REDIS_CONNECTOR.get(path_to_file))
-    servers: List[Server] = []
-    for server in possible_servers:
-        servers.append(Server(server["address"], server["port"]))
+def _find_file_location(path_to_file) -> List[str]:
+    possible_servers: List[dict] = json.loads(REDIS_CONNECTOR.get(path_to_file))
+    servers: List[Server] = [Server(server["address"], server["port"]) for server in possible_servers]
 
-    links = []
+    links: List[str] = []
     for server in servers:
         try:
             ping(server)
-            links.append(f'http://{server.address}:{server.port}/{path_to_file}')
-        except:
+            links.append(construct_query(server, path_to_file))
+        except requests.ConnectionError:
             servers.remove(server)
 
     REDIS_CONNECTOR.set(path_to_file, str(servers))
     return links
-
-
-def ping(server: Server):
-    requests.get(f'http://{server.address}:{server.port}/ping')
-
-
-def upload_file(path_to_file):
-    global ACTIVE_SERVERS
-    links = []
-    for server in ACTIVE_SERVERS:
-        try:
-            ping(server)
-            links.append(f'http://{server.address}:{server.port}/{path_to_file}')
-        except:
-            ACTIVE_SERVERS.remove(server)
-
-    REDIS_CONNECTOR.set(path_to_file, str(ACTIVE_SERVERS))
-    return links
-
-
-def get_random_element(a_list):
-    return a_list[int(random.uniform(0, len(a_list)))]
 
 
 if __name__ == '__main__':
