@@ -1,5 +1,6 @@
 import configparser
 import os
+import re
 
 import requests
 
@@ -11,11 +12,15 @@ PORT = config["DEFAULT"]["port"]
 current_directory = ''
 
 
+def info_query(query):
+    return f'http://{HOST}:{PORT}/files/info/{query}'
+
+
 def file_query(query):
     return f'http://{HOST}:{PORT}/files/{query}'
 
 
-def query(query):
+def common_query(query):
     return f'http://{HOST}:{PORT}/{query}'
 
 
@@ -23,14 +28,24 @@ def query(query):
 # -----------------------------------
 
 def initialize() -> requests.Response:
-    return requests.get(query('initialize'))
+    return requests.get(common_query('initialize'))
 
 
-def create_file(path_to_file):
-    if current_directory != '':
-        requests.post(file_query(f'{current_directory}/{path_to_file}'))
+def create_file(file_name: str, path_to_file: str):
+    file_name = file_name.strip()
+    path_to_file = path_to_file.strip()
+    if path_to_file == './':
+        if current_directory == '':
+            slash = ''
+        else:
+            slash = '/'
+        requests.post(file_query(f'{current_directory.lstrip("/")}{slash}{file_name.lstrip("/")}'), data=b'')
     else:
-        requests.post(file_query(os.path.basename(path_to_file)))
+        if path_to_file == '':
+            slash = ''
+        else:
+            slash = '/'
+        requests.post(file_query(f'{path_to_file.lstrip("/")}{slash}{file_name.lstrip("/")}'))
 
 
 def write_file(path_to_file):
@@ -49,8 +64,17 @@ def delete_file(path_to_file):
         requests.delete(file_query(os.path.basename(path_to_file)))
 
 
-def info_file():
-    pass
+def info_file(path_to_file: str):
+    path_to_file = path_to_file.strip()
+    if path_to_file.startswith('./'):
+        if current_directory == '':
+            slash = ''
+        else:
+            slash = '/'
+        return requests.get(info_query(f'{current_directory.lstrip("/")}{slash}{path_to_file.lstrip("./")}'),
+                            data=b'').text
+    else:
+        return requests.get(info_query(f'{path_to_file.lstrip("/")}')).text
 
 
 def copy_file():
@@ -82,7 +106,7 @@ def delete_directory():
 # End of commands section
 
 commands = {
-
+    '': print
 }
 
 if __name__ == '__main__':
@@ -103,6 +127,12 @@ if __name__ == '__main__':
 
         if command == 'help':
             print(commands)
+        elif re.compile(r'(.+)>(.+)').search(command) is not None:
+            name, path = re.compile(r'(.+)>(.+)').search(command).groups()
+            create_file(name, path)
+        elif re.compile(r'stat(.+)').search(command) is not None:
+            path = re.compile(r'stat(.+)').search(command).group(1)
+            print(info_file(path))
         elif command in commands:
             commands[command]()
         else:

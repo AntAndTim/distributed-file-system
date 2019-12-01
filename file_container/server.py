@@ -2,10 +2,11 @@ import configparser
 import json
 import os
 import shutil
+from datetime import datetime
 from os.path import expanduser
 
 import requests
-from flask import Flask, send_from_directory, request
+from flask import Flask, send_from_directory, request, abort, jsonify
 
 from common.models import Server
 
@@ -24,12 +25,30 @@ def ping():
     return 'OK'
 
 
+@app.route('/info/<path:path_to_file>', methods=['GET'])
+def info(path_to_file: str):
+    with os.scandir(f'{FILE_STORAGE_PATH}{path_to_file[:path_to_file.rfind("/")]}') as dir_entries:
+        for entry in dir_entries:
+            if entry.name == path_to_file[path_to_file.rfind('/') + 1]:
+                return jsonify(get_file_info(entry))
+    return abort(404)
+
+
+def get_file_info(entry):
+    stat = entry.stat()
+    return {
+        'size': stat[6],
+        'lastAccessed': datetime.fromtimestamp(stat[7]).strftime("%A, %B %d, %Y %I:%M:%S"),
+        'lastModified': datetime.fromtimestamp(stat[8]).strftime("%A, %B %d, %Y %I:%M:%S"),
+    }
+
+
 @app.route('/<path:path_to_file>', methods=['POST'])
 def upload(path_to_file: str):
-    path_to_file = f'{FILE_STORAGE_PATH}/{path_to_file}'
+    path_to_file = f'{FILE_STORAGE_PATH}{path_to_file}'
     directory = path_to_file[:path_to_file.rfind('/')]
     if not os.path.exists(directory):
-        os.mkdir(directory)
+        os.makedirs(directory)
     file = open(path_to_file, 'wb')
     file.write(request.data)
     return 'OK'

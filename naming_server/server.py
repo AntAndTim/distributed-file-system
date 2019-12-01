@@ -22,6 +22,9 @@ ACTIVE_SERVERS: List[Server] = []
 
 
 def check_server_liveness():
+    global ACTIVE_SERVERS
+    unique_servers = set(ACTIVE_SERVERS)  # handling duplicates
+    ACTIVE_SERVERS = list(unique_servers)
     for server in ACTIVE_SERVERS:
         try:
             ping(server)
@@ -97,6 +100,17 @@ def delete(path_to_file: str):
     return jsonify('OK')
 
 
+@app.route('/files/info/<path:path_to_file>', methods=['GET'])
+def info(path_to_file: str):
+    urls = _find_file_location(path_to_file, True)
+    if len(urls) == 0:
+        return 'SERVERS ARE UNAVAILABLE'
+    get = requests.get(get_random_element(urls))
+    if get.status_code != 200:
+        abort(get.status_code)
+    return get.content
+
+
 # -----------------------------------
 # End of file managing section
 
@@ -158,7 +172,7 @@ def add_header(r):
     return r
 
 
-def _find_file_location(path_to_file) -> List[str]:
+def _find_file_location(path_to_file, info=False) -> List[str]:
     possible_servers: List[dict] = json.loads(REDIS_CONNECTOR.get(path_to_file))
     servers: List[Server] = [Server(server["address"], server["port"]) for server in possible_servers]
 
@@ -166,7 +180,10 @@ def _find_file_location(path_to_file) -> List[str]:
     for server in servers:
         try:
             ping(server)
-            links.append(construct_query(server, path_to_file))
+            if info:
+                links.append(f'{construct_query(server, "info")}/{path_to_file}')
+            else:
+                links.append(construct_query(server, path_to_file))
         except requests.ConnectionError:
             servers.remove(server)
 
