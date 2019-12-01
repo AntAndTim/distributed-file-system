@@ -92,8 +92,18 @@ def copy_file(file_from: str, file_to: str):
         return 'OK'
 
 
-def move_file():
-    pass
+def move_file(file_from: str, file_to: str):
+    file_from = get_path(file_from.strip())
+    file_to = get_path(file_to.strip())
+
+    request = make_request(requests.get, info_query(file_from))
+    if (request == 'No result found') or (request == 'Some error occurred'):
+        return request
+    else:
+        file = requests.get(file_query(file_from)).content
+        requests.delete(file_query(file_from))
+        requests.post(file_query(file_to), data=file)
+        return 'OK'
 
 
 def open_directory(path_to_directory):
@@ -147,6 +157,9 @@ if __name__ == '__main__':
         elif re.compile(r'cp (.+) (.+)').search(command) is not None:
             what, where = re.compile(r'cp (.+) (.+)').search(command).groups()
             print(copy_file(what, where))
+        elif re.compile(r'mv (.+) (.+)').search(command) is not None:
+            what, where = re.compile(r'mv (.+) (.+)').search(command).groups()
+            print(move_file(what, where))
         elif command in commands:
             commands[command]()
         else:
