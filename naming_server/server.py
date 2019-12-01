@@ -173,7 +173,10 @@ def add_header(r):
 
 
 def _find_file_location(path_to_file, info=False) -> List[str]:
-    possible_servers: List[dict] = json.loads(REDIS_CONNECTOR.get(path_to_file))
+    paths = REDIS_CONNECTOR.get(path_to_file)
+    if paths is None:
+        abort(404)
+    possible_servers: List[dict] = json.loads(paths)
     servers: List[Server] = [Server(server["address"], server["port"]) for server in possible_servers]
 
     links: List[str] = []

@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 from datetime import datetime
+from os import DirEntry
 from os.path import expanduser
 
 import requests
@@ -34,7 +35,8 @@ def info(path_to_file: str):
     return abort(404)
 
 
-def get_file_info(entry):
+def get_file_info(entry: DirEntry):
+    os.stat(entry.path)
     stat = entry.stat()
     return {
         'size': stat[6],

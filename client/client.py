@@ -3,6 +3,7 @@ import os
 import re
 
 import requests
+from requests import Response
 
 config = configparser.ConfigParser()
 config.read('client.ini')
@@ -24,6 +25,27 @@ def common_query(query):
     return f'http://{HOST}:{PORT}/{query}'
 
 
+def make_request(request_function, args):
+    result: Response = request_function(args)
+    if result.status_code == 404:
+        return 'No result found'
+    elif result.status_code == 500:
+        return 'Some error occurred'
+    else:
+        return result.text
+
+
+def get_path(some_path: str):
+    if some_path.startswith('./'):
+        if current_directory == '':
+            slash = ''
+        else:
+            slash = '/'
+        return f'{current_directory.lstrip("/")}{slash}{some_path.lstrip("./")}'
+    else:
+        return some_path.lstrip("/")
+
+
 # Commands section
 # -----------------------------------
 
@@ -32,20 +54,8 @@ def initialize() -> requests.Response:
 
 
 def create_file(file_name: str, path_to_file: str):
-    file_name = file_name.strip()
-    path_to_file = path_to_file.strip()
-    if path_to_file == './':
-        if current_directory == '':
-            slash = ''
-        else:
-            slash = '/'
-        requests.post(file_query(f'{current_directory.lstrip("/")}{slash}{file_name.lstrip("/")}'), data=b'')
-    else:
-        if path_to_file == '':
-            slash = ''
-        else:
-            slash = '/'
-        requests.post(file_query(f'{path_to_file.lstrip("/")}{slash}{file_name.lstrip("/")}'))
+    final_path = get_path(path_to_file + '/' + file_name)
+    requests.post(file_query(final_path), data=b'')
 
 
 def write_file(path_to_file):
@@ -65,20 +75,21 @@ def delete_file(path_to_file):
 
 
 def info_file(path_to_file: str):
-    path_to_file = path_to_file.strip()
-    if path_to_file.startswith('./'):
-        if current_directory == '':
-            slash = ''
-        else:
-            slash = '/'
-        return requests.get(info_query(f'{current_directory.lstrip("/")}{slash}{path_to_file.lstrip("./")}'),
-                            data=b'').text
+    path_to_file = get_path(path_to_file.strip())
+    return make_request(requests.get, info_query(path_to_file))
+
+
+def copy_file(file_from: str, file_to: str):
+    file_from = get_path(file_from.strip())
+    file_to = get_path(file_to.strip())
+
+    request = make_request(requests.get, info_query(file_from))
+    if (request == 'No result found') or (request == 'Some error occurred'):
+        return request
     else:
-        return requests.get(info_query(f'{path_to_file.lstrip("/")}')).text
-
-
-def copy_file():
-    pass
+        file = requests.get(file_query(file_from)).content
+        requests.post(file_query(file_to), data=file)
+        return 'OK'
 
 
 def move_file():
@@ -130,9 +141,12 @@ if __name__ == '__main__':
         elif re.compile(r'(.+)>(.+)').search(command) is not None:
             name, path = re.compile(r'(.+)>(.+)').search(command).groups()
             create_file(name, path)
-        elif re.compile(r'stat(.+)').search(command) is not None:
-            path = re.compile(r'stat(.+)').search(command).group(1)
+        elif re.compile(r'stat (.+)').search(command) is not None:
+            path = re.compile(r'stat (.+)').search(command).group(1)
             print(info_file(path))
+        elif re.compile(r'cp (.+) (.+)').search(command) is not None:
+            what, where = re.compile(r'cp (.+) (.+)').search(command).groups()
+            print(copy_file(what, where))
         elif command in commands:
             commands[command]()
         else:
