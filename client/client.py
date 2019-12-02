@@ -129,7 +129,7 @@ def read_directory():
 
 
 def make_directory(path_to_directory):
-    requests.post(file_query(path_to_directory))
+    return requests.post(file_query(path_to_directory + f'?dir=1')).text
 
 
 def delete_directory():
@@ -177,6 +177,9 @@ if __name__ == '__main__':
             directory = re.compile(r'cd (.+)').search(command).group(1)
             print(open_directory(directory))
             print(f'Current directory: {current_directory}')
+        elif re.compile(r'mkdir (.+)').search(command) is not None:
+            directory = re.compile(r'mkdir (.+)').search(command).group(1)
+            print(make_directory(directory))
         elif command in commands:
             print(commands[command]())
         else:

@@ -56,6 +56,10 @@ def get_file_info(entry: DirEntry):
 @app.route('/<path:path_to_file>', methods=['POST'])
 def upload(path_to_file: str):
     path_to_file = f'{FILE_STORAGE_PATH}{path_to_file}'
+    is_directory = request.args.get('dir')
+    if is_directory == '1':
+        os.makedirs(path_to_file)
+        return "OK"
     directory = path_to_file[:path_to_file.rfind('/')]
     if not os.path.exists(directory):
         os.makedirs(directory)

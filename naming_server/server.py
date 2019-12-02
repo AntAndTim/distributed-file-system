@@ -82,9 +82,11 @@ def download(path_to_file: str):
 
 @app.route('/files/<path:path_to_file>', methods=['POST'])
 def upload(path_to_file: str):
+    is_directory = request.args.get('dir')
+    print(is_directory)
     for server in ACTIVE_SERVERS:
         try:
-            requests.post(construct_query(server, path_to_file), data=request.data)
+            requests.post(construct_query(server, path_to_file + f'?dir={is_directory}'), data=request.data)
         except requests.ConnectionError:
             ACTIVE_SERVERS.remove(server)
     REDIS_CONNECTOR.set(path_to_file, str(ACTIVE_SERVERS))
