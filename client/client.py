@@ -58,13 +58,21 @@ def create_file(file_name: str, path_to_file: str):
     requests.post(file_query(final_path), data=b'')
 
 
-def write_file(path_to_file):
-    data = open(path_to_file, 'rb').read()
+def write_file(file_from: str, file_to: str):
+    data = open(file_from, 'rb').read()
+    requests.post(file_query(get_path(file_to)), data=data)
 
-    if current_directory != '':
-        requests.post(file_query(f'{current_directory}/{os.path.basename(path_to_file)}'), data=data)
+
+def read_file(file_from: str, file_to: str):
+    get = requests.get(file_query(get_path(file_from)))
+    if get.status_code == 404:
+        return 'No result found'
+    elif get.status_code == 500:
+        return 'Some error occurred'
     else:
-        requests.post(file_query(os.path.basename(path_to_file)), data=data)
+        if '/' in file_to:
+            os.makedirs(file_to[: file_to.rfind('/')])
+        open(file_to, 'wb').write(get.content)
 
 
 def delete_file(path_to_file):
@@ -139,9 +147,18 @@ def delete_directory(path_to_directory: str):
 # -----------------------------------
 # End of commands section
 
-commands = {
-    'ls': read_directory
-}
+commands = '''
+file_name > path/name - creates empty file
+stat file_name - prints file info
+cp from to - copies file
+mv from to - moves file
+cd path - open path
+mkdir path - makes directory
+rmdir path - removes directory
+write path_on_computer path_on_server - upload to server
+read path_on_server path_on_computer - reads to pc
+rm path - deletes file on server
+'''
 
 if __name__ == '__main__':
     print('Client for DFS started!')
@@ -183,7 +200,16 @@ if __name__ == '__main__':
         elif re.compile(r'rmdir (.+)').search(command) is not None:
             directory = re.compile(r'rmdir (.+)').search(command).group(1)
             print(delete_directory(directory))
-        elif command in commands:
-            print(commands[command]())
+        elif re.compile(r'write (.+) (.+)').search(command) is not None:
+            what, where = re.compile(r'write (.+) (.+)').search(command).groups()
+            print(write_file(what, where))
+        elif re.compile(r'read (.+) (.+)').search(command) is not None:
+            what, where = re.compile(r'read (.+) (.+)').search(command).groups()
+            print(read_file(what, where))
+        elif re.compile(r'rm (.+)').search(command) is not None:
+            what = re.compile(r'rm (.+)').search(command).group(1)
+            print(delete_file(what))
+        elif command == 'ls':
+            print(read_directory())
         else:
             print(f'There is no command `{command}`! Type `help` for the list of available commands')
