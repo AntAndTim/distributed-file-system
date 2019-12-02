@@ -88,7 +88,10 @@ def replicate():
 @app.route('/<path:path_to_file>', methods=['DELETE'])
 def delete(path_to_file: str):
     path_to_file = f'{FILE_STORAGE_PATH}/{path_to_file}'
-    os.remove(path_to_file)
+    if os.path.isdir(path_to_file):
+        os.rmdir(path_to_file)
+    else:
+        os.remove(path_to_file)
     return 'OK'
 
 

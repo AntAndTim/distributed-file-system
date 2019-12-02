@@ -128,12 +128,12 @@ def read_directory():
     return make_request(requests.get, info_query(get_path(current_directory)))
 
 
-def make_directory(path_to_directory):
+def make_directory(path_to_directory: str):
     return requests.post(file_query(path_to_directory + f'?dir=1')).text
 
 
-def delete_directory():
-    pass
+def delete_directory(path_to_directory: str):
+    return requests.delete(file_query(path_to_directory + f'?dir=1')).text
 
 
 # -----------------------------------
@@ -180,6 +180,9 @@ if __name__ == '__main__':
         elif re.compile(r'mkdir (.+)').search(command) is not None:
             directory = re.compile(r'mkdir (.+)').search(command).group(1)
             print(make_directory(directory))
+        elif re.compile(r'rmdir (.+)').search(command) is not None:
+            directory = re.compile(r'rmdir (.+)').search(command).group(1)
+            print(delete_directory(directory))
         elif command in commands:
             print(commands[command]())
         else:

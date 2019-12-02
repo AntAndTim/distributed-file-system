@@ -83,7 +83,6 @@ def download(path_to_file: str):
 @app.route('/files/<path:path_to_file>', methods=['POST'])
 def upload(path_to_file: str):
     is_directory = request.args.get('dir')
-    print(is_directory)
     for server in ACTIVE_SERVERS:
         try:
             requests.post(construct_query(server, path_to_file + f'?dir={is_directory}'), data=request.data)
@@ -95,9 +94,10 @@ def upload(path_to_file: str):
 
 @app.route('/files/<path:path_to_file>', methods=['DELETE'])
 def delete(path_to_file: str):
+    is_directory = request.args.get('dir')
     urls = _find_file_location(path_to_file)
     for url in urls:
-        requests.delete(url)
+        requests.delete(url + f'?dir={is_directory}')
     REDIS_CONNECTOR.delete(path_to_file)
     return jsonify('OK')
 
