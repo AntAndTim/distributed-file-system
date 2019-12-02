@@ -71,7 +71,9 @@ def read_file(file_from: str, file_to: str):
         return 'Some error occurred'
     else:
         if '/' in file_to:
-            os.makedirs(file_to[: file_to.rfind('/')])
+            path_to_folder = file_to[: file_to.rfind('/')]
+            if not os.path.exists(path_to_folder):
+                os.makedirs(path_to_folder)
         open(file_to, 'wb').write(get.content)
 
 
