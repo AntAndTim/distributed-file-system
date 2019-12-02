@@ -1,17 +1,70 @@
+import datetime
 import json
 import logging
 import random
+from json import JSONEncoder
 from os import environ
 from threading import Thread
-from typing import List, Any
+from time import sleep
+from typing import List, Any, Optional
 
 import redis
 import requests
 from flask import Flask, request, make_response, abort, jsonify
 from requests import Response
 
-from common.models import Server, Encoder
-from naming_server.scheduler import Scheduler
+
+class Scheduler(Thread):
+
+    def __init__(self, target, args: tuple, second=5, daemon: Optional[bool] = ...) -> None:
+
+        super().__init__(daemon=daemon)
+        self.args = args
+        self.target = target
+        self.second = second
+        self._init_update()
+
+    def _init_update(self) -> None:
+        self.update_time = datetime.datetime.today() + datetime.timedelta(seconds=self.second)
+
+    def run(self) -> None:
+        while True:
+            time_to_sleep = (self.update_time - datetime.datetime.today()).seconds
+            while time_to_sleep > 0:
+                sleep(time_to_sleep)
+                time_to_sleep = (self.update_time - datetime.datetime.today()).seconds
+            Thread(target=self.target, args=self.args).run()
+            sleep(1)  # Is used to prevent target to run several times during update_time == today()
+            self._init_update()
+
+
+class Server:
+    def __init__(self, address: str, port: int) -> None:
+        super().__init__()
+        self.address = address
+        self.port = port
+
+    def __str__(self) -> str:
+        return '{' + f'"address":"{self.address}", "port":{self.port}' + '}'
+
+    def __repr__(self) -> str:
+        return '{' + f'"address":"{self.address}", "port":{self.port}' + '}'
+
+    def __eq__(self, o: object) -> bool:
+        if isinstance(o, Server):
+            return self.address == o.address and self.port == o.port
+        return False
+
+    def __hash__(self) -> int:
+        return hash((self.address, self.port))
+
+
+class Encoder(JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Server):
+            return str(obj)
+        return JSONEncoder.default(self, obj)
+
 
 LOG = logging.getLogger('NamingServer')
 LOG.setLevel(logging.DEBUG)
