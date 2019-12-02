@@ -27,7 +27,7 @@ def common_query(query):
 
 def make_request(request_function, args):
     result: Response = request_function(args)
-    if result.status_code == 404:
+    if result.status_code == 404 or '404 Not Found' in result.text:
         return 'No result found'
     elif result.status_code == 500:
         return 'Some error occurred'
@@ -108,11 +108,24 @@ def move_file(file_from: str, file_to: str):
 
 def open_directory(path_to_directory):
     global current_directory
+    if path_to_directory == '..':
+        if '/' in current_directory:
+            path_to_directory = current_directory[:current_directory.rfind('/')]
+        else:
+            current_directory = ''
+            return 'OK'
+
+    request = make_request(requests.get, info_query(path_to_directory))
+    if (request == 'No result found') or (request == 'Some error occurred'):
+        return request
     current_directory = path_to_directory
+    return 'OK'
 
 
 def read_directory():
-    pass
+    if current_directory == '':
+        return make_request(requests.get, info_query('./'))
+    return make_request(requests.get, info_query(get_path(current_directory)))
 
 
 def make_directory(path_to_directory):
@@ -127,7 +140,7 @@ def delete_directory():
 # End of commands section
 
 commands = {
-    '': print
+    'ls': read_directory
 }
 
 if __name__ == '__main__':
@@ -160,7 +173,11 @@ if __name__ == '__main__':
         elif re.compile(r'mv (.+) (.+)').search(command) is not None:
             what, where = re.compile(r'mv (.+) (.+)').search(command).groups()
             print(move_file(what, where))
+        elif re.compile(r'cd (.+)').search(command) is not None:
+            directory = re.compile(r'cd (.+)').search(command).group(1)
+            print(open_directory(directory))
+            print(f'Current directory: {current_directory}')
         elif command in commands:
-            commands[command]()
+            print(commands[command]())
         else:
             print(f'There is no command `{command}`! Type `help` for the list of available commands')

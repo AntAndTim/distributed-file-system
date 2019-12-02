@@ -28,9 +28,17 @@ def ping():
 
 @app.route('/info/<path:path_to_file>', methods=['GET'])
 def info(path_to_file: str):
-    with os.scandir(f'{FILE_STORAGE_PATH}{path_to_file[:path_to_file.rfind("/")]}') as dir_entries:
+    if os.path.isdir(f'{FILE_STORAGE_PATH}{path_to_file}'):
+        return jsonify(os.listdir(f'{FILE_STORAGE_PATH}{path_to_file}'))
+    if '/' in path_to_file:
+        scan_path = f'{FILE_STORAGE_PATH}{path_to_file[:path_to_file.rfind("/")]}'
+        file_name = path_to_file[path_to_file.rfind('/') + 1]
+    else:
+        scan_path = FILE_STORAGE_PATH
+        file_name = path_to_file
+    with os.scandir(scan_path) as dir_entries:
         for entry in dir_entries:
-            if entry.name == path_to_file[path_to_file.rfind('/') + 1]:
+            if entry.name == file_name:
                 return jsonify(get_file_info(entry))
     return abort(404)
 

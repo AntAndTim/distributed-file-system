@@ -104,7 +104,7 @@ def delete(path_to_file: str):
 def info(path_to_file: str):
     urls = _find_file_location(path_to_file, True)
     if len(urls) == 0:
-        return 'SERVERS ARE UNAVAILABLE'
+        return requests.get(construct_query(get_random_element(ACTIVE_SERVERS), f'info/{path_to_file}')).text
     get = requests.get(get_random_element(urls))
     if get.status_code != 200:
         abort(get.status_code)
@@ -173,11 +173,14 @@ def add_header(r):
 
 
 def _find_file_location(path_to_file, info=False) -> List[str]:
-    paths = REDIS_CONNECTOR.get(path_to_file)
-    if paths is None:
-        abort(404)
-    possible_servers: List[dict] = json.loads(paths)
-    servers: List[Server] = [Server(server["address"], server["port"]) for server in possible_servers]
+    if path_to_file == './':
+        servers: List[Server] = ACTIVE_SERVERS
+    else:
+        paths = REDIS_CONNECTOR.get(path_to_file)
+        if paths is None:
+            return []
+        possible_servers: List[dict] = json.loads(paths)
+        servers: List[Server] = [Server(server["address"], server["port"]) for server in possible_servers]
 
     links: List[str] = []
     for server in servers:
