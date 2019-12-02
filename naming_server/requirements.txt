@@ -1,0 +1,4 @@
+requests==2.21.0
+Flask==1.0.2
+redis==3.3.8
+typing==3.7.4.1

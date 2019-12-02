@@ -1,6 +1,6 @@
-import configparser
 import json
 import os
+import re
 import shutil
 from datetime import datetime
 from os import DirEntry
@@ -112,13 +112,11 @@ if __name__ == '__main__':
         os.mkdir(FILE_STORAGE_PATH)
     else:
         recreate_storage()
-    config = configparser.ConfigParser()
-    config.read('file_server.ini')
     ip = requests.get('http://checkip.dyndns.com/').text
-    host = config["DEFAULT"]["host"]
-    port = config["DEFAULT"]["port"]
+    host = os.environ['HOST']
+    port = os.environ['PORT']
     requests.post(url=f'http://{host}:{port}/server', json={
-        "address": 'localhost',  # re.compile(r'Address: (\d+\.\d+\.\d+\.\d+)').search(ip).group(1)
+        "address": re.compile(r'Address: (\d+\.\d+\.\d+\.\d+)').search(ip).group(1),
         "port": 8080
     })
     app.run(host='0.0.0.0', port=8080)
