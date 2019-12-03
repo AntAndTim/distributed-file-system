@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: naming-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: naming-server
+  template:
+    metadata:
+      labels:
+        name: naming-server
+    spec:
+      containers:
+        - name: application
+          image: antandtim/naming_server:latest
+          env:
+            - name: REDIS_HOST
+              value: "46.101.68.11"
+            - name: REDIS_PORT
+              value: "6379"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+

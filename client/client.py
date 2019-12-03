@@ -54,7 +54,7 @@ def initialize() -> requests.Response:
 
 
 def create_file(file_name: str, path_to_file: str):
-    final_path = get_path(path_to_file + '/' + file_name)
+    final_path = get_path(path_to_file.strip() + '/' + file_name.strip())
     requests.post(file_query(final_path), data=b'')
 
 

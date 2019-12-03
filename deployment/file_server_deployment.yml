@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: file-server
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      name: file-server
+  template:
+    metadata:
+      labels:
+        name: file-server
+    spec:
+      containers:
+        - name: application
+          image: antandtim/file_server:latest
+          env:
+            - name: IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: HOST
+              value: "67.207.75.0"
+            - name: PORT
+              value: "80"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080

@@ -12,6 +12,40 @@ import redis
 import requests
 from flask import Flask, request, make_response, abort, jsonify
 from requests import Response
+from requests.adapters import TimeoutSauce, HTTPAdapter
+from urllib3 import Retry
+
+
+def requests_retry_session(
+        retries=3,
+        backoff_factor=0.3,
+        status_forcelist=(500, 502, 504),
+        session=None,
+):
+    session = session or requests.Session()
+    retry = Retry(
+        total=retries,
+        read=retries,
+        connect=retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('http://', adapter)
+    session.mount('https://', adapter)
+    return session
+
+
+class DefaultTimeout(TimeoutSauce):
+    def __init__(self, *args, **kwargs):
+        if kwargs['connect'] is None:
+            kwargs['connect'] = 2
+        if kwargs['read'] is None:
+            kwargs['read'] = 2
+        super(DefaultTimeout, self).__init__(*args, **kwargs)
+
+
+requests.adapters.TimeoutSauce = DefaultTimeout
 
 
 class Scheduler(Thread):
@@ -102,11 +136,11 @@ def construct_query(server: Server, query: str) -> str:
 
 
 def reset(server: Server) -> Response:
-    return requests.get(construct_query(server, 'reset'))
+    return requests_retry_session().get(construct_query(server, 'reset'))
 
 
 def ping(server: Server):
-    requests.get(construct_query(server, 'ping'))
+    requests_retry_session().get(construct_query(server, 'ping'))
 
 
 def get_random_element(a_list: List[Any]) -> Any:
@@ -125,7 +159,7 @@ def download(path_to_file: str):
     urls = _find_file_location(path_to_file)
     if len(urls) == 0:
         return 'SERVERS ARE UNAVAILABLE'
-    get = requests.get(get_random_element(urls))
+    get = requests_retry_session().get(get_random_element(urls))
     if get.status_code != 200:
         abort(get.status_code)
     response = make_response(get.content)
@@ -138,7 +172,8 @@ def upload(path_to_file: str):
     is_directory = request.args.get('dir')
     for server in ACTIVE_SERVERS:
         try:
-            requests.post(construct_query(server, path_to_file + f'?dir={is_directory}'), data=request.data)
+            requests_retry_session().post(construct_query(server, path_to_file + f'?dir={is_directory}'),
+                                          data=request.data)
         except requests.ConnectionError:
             ACTIVE_SERVERS.remove(server)
     REDIS_CONNECTOR.set(path_to_file, str(ACTIVE_SERVERS))
@@ -150,7 +185,7 @@ def delete(path_to_file: str):
     is_directory = request.args.get('dir')
     urls = _find_file_location(path_to_file)
     for url in urls:
-        requests.delete(url + f'?dir={is_directory}')
+        requests_retry_session().delete(url + f'?dir={is_directory}')
     REDIS_CONNECTOR.delete(path_to_file)
     return jsonify('OK')
 
@@ -159,8 +194,9 @@ def delete(path_to_file: str):
 def info(path_to_file: str):
     urls = _find_file_location(path_to_file, True)
     if len(urls) == 0:
-        return requests.get(construct_query(get_random_element(ACTIVE_SERVERS), f'info/{path_to_file}')).text
-    get = requests.get(get_random_element(urls))
+        return requests_retry_session().get(
+            construct_query(get_random_element(ACTIVE_SERVERS), f'info/{path_to_file}')).text
+    get = requests_retry_session().get(get_random_element(urls))
     if get.status_code != 200:
         abort(get.status_code)
     return get.content
@@ -201,7 +237,7 @@ def prepare_server(server):
         replicas.remove(server)
         if len(ACTIVE_SERVERS) > 1:
             server_from = get_random_element(replicas)
-            requests.post(construct_query(server_from, 'replicate'), data=str(server))
+            requests_retry_session().post(construct_query(server_from, 'replicate'), data=str(server))
 
 
 # User for wiping all file servers
